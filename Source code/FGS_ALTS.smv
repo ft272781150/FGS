@@ -1,0 +1,369 @@
+--主模块
+MODULE main
+VAR
+	m_Is_VAPPR_Active			: Is_VAPPR_Active();
+	m_Is_VGA_Active				: Is_VGA_Active();
+	m_Is_ALT_Active				: Is_ALT_Active();
+	m_Is_ALTSEL_Avaiable			: Is_ALTSEL_Avaiable(m_Is_VAPPR_Active, m_Is_VGA_Active, m_Is_ALT_Active);
+	m_ALTSEL_Target_Altitude_Changed	: ALTSEL_Target_Altitude_Changed(m_Is_ALTSEL_Avaiable);
+	m_Current_Altitude			: Current_Altitude(m_ALTSEL_Target_Altitude_Changed, m_Is_ALTSEL_Avaiable, m_ALTSEL_Selected);
+	m_Current_Heading			: Current_Heading(m_ALTSEL_Target_Altitude_Changed, m_Is_ALTSEL_Avaiable, m_ALTSEL_Selected);	
+	m_Is_ALTSEL_Capture_Cond_Met		: Is_ALTSEL_Capture_Cond_Met(m_ALTSEL, 
+									     m_ALTSEL_Target_Altitude_Changed);
+	m_Is_ALTSEL_Track_Cond_Met		: Is_ALTSEL_Track_Cond_Met(m_Is_ALTSEL_Capture_Cond_Met,
+									   m_Current_Altitude,
+									   m_Current_Heading,
+									   m_ALTSEL_Target_Altitude_Changed);		
+	m_Select_ALTSEL				: Select_ALTSEL(m_Is_VAPPR_Active, 
+								m_Is_VGA_Active, 
+								m_Is_ALT_Active);
+	m_Deselect_ALTSEL			: Deselect_ALTSEL(m_Is_VAPPR_Active, 
+								  m_Is_VGA_Active, 
+								  m_Is_ALT_Active);
+	m_ALTSEL				: ALTSEL(m_Select_ALTSEL, 
+							 m_Deselect_ALTSEL);
+	m_Capture_ALTSEL			: Capture_ALTSEL(m_Is_ALTSEL_Capture_Cond_Met);
+	m_Track_ALTSEL				: Track_ALTSEL(m_Is_ALTSEL_Track_Cond_Met);
+	m_Deactivate_ALTSEL			: Deactivate_ALTSEL(m_ALTSEL_Target_Altitude_Changed);
+	m_ALTSEL_Selected			: ALTSEL_Selected(m_Capture_ALTSEL, 
+								  m_Deactivate_ALTSEL, 
+								  m_ALTSEL);	
+	m_ALTSEL_Active				: ALTSEL_Active(m_Track_ALTSEL, m_ALTSEL_Selected);
+	m_Is_ALTSEL_Selected			: Is_ALTSEL_Selected(m_ALTSEL);
+	m_Is_ALTSEL_Active			: Is_ALTSEL_Active(m_ALTSEL_Selected);
+	m_Is_ALTSEL_Track			: Is_ALTSEL_Track(m_ALTSEL_Active);
+	m_Update_Roll_Guidance			: Update_Roll_Guidance(m_ALTSEL_Selected, m_ALTSEL_Active);
+	m_Update_Pitch_Guidance			: Update_Pitch_Guidance(m_ALTSEL_Selected, m_ALTSEL_Active);
+
+		
+
+
+FAIRNESS m_ALTSEL_Target_Altitude_Changed.result = FALSE;
+FAIRNESS m_ALTSEL_Target_Altitude_Changed.result = TRUE;
+
+CTLSPEC AG((m_Is_VAPPR_Active.result = TRUE | m_Is_VGA_Active.result = TRUE | m_Is_ALT_Active.result = TRUE) -> (m_ALTSEL.ALTSEL = Cleared));
+CTLSPEC AG((m_Is_VAPPR_Active.result = FALSE & m_Is_VGA_Active.result = FALSE & m_Is_ALT_Active.result = FALSE) -> (m_ALTSEL.ALTSEL = Selected));
+
+CTLSPEC AG(m_Select_ALTSEL.result = TRUE & m_Capture_ALTSEL.result = FALSE -> m_ALTSEL_Selected.result = Armed);
+
+CTLSPEC AG(m_Select_ALTSEL.result = TRUE & m_Deactivate_ALTSEL.result = TRUE -> m_ALTSEL_Selected.result = Armed);
+CTLSPEC AG(m_Select_ALTSEL.result = TRUE & m_ALTSEL_Target_Altitude_Changed.result = TRUE -> m_ALTSEL_Selected.result = Armed);
+
+CTLSPEC AG(m_ALTSEL.ALTSEL = Cleared -> EX(E[m_ALTSEL_Selected.result = Armed U m_Capture_ALTSEL.result = TRUE]));
+
+CTLSPEC AG(m_Select_ALTSEL.result = TRUE & m_Capture_ALTSEL.result = TRUE & m_Is_ALTSEL_Track_Cond_Met.result = FALSE & m_ALTSEL_Target_Altitude_Changed.result = FALSE -> m_ALTSEL_Active.result = Capture);
+CTLSPEC AG(m_ALTSEL_Selected.result = Armed -> EX(E[m_ALTSEL_Active.result = Capture U m_Is_ALTSEL_Track_Cond_Met.result = TRUE]));
+
+
+CTLSPEC AG(m_ALTSEL_Selected.result = Armed -> EX(m_ALTSEL_Active.result = Capture)) & !AG(m_ALTSEL_Active.result = Track -> EX(m_ALTSEL_Active.result = Capture)) & !AG(m_ALTSEL.ALTSEL = Cleared -> EX(m_ALTSEL_Active.result = Capture));
+
+CTLSPEC AG(m_Select_ALTSEL.result = TRUE & m_Is_ALTSEL_Track_Cond_Met.result = TRUE & m_ALTSEL_Target_Altitude_Changed.result = FALSE -> m_ALTSEL_Active.result = Track);
+CTLSPEC AG(m_ALTSEL_Active.result = Capture -> EX(E[m_ALTSEL_Active.result = Track U m_ALTSEL_Target_Altitude_Changed.result = TRUE]));
+
+CTLSPEC AG(m_ALTSEL_Active.result = Capture -> EX(m_ALTSEL_Active.result = Track)) & !AG(m_ALTSEL_Selected.result = Armed -> EX(m_ALTSEL_Active.result = Track)) & !AG(m_ALTSEL.ALTSEL = Cleared -> EX(m_ALTSEL_Active.result = Track));
+
+CTLSPEC AG((m_ALTSEL_Selected.result = Armed)   -> ((m_Update_Roll_Guidance.result = FALSE) & (m_Update_Pitch_Guidance.result = FALSE)));
+CTLSPEC AG((m_ALTSEL_Selected.result = Capture) -> ((m_Update_Pitch_Guidance.result = TRUE) & (m_Update_Roll_Guidance.result = TRUE)));
+CTLSPEC AG((m_ALTSEL_Selected.result = Track)   -> ((m_Update_Pitch_Guidance.result = FALSE) & (m_Update_Roll_Guidance.result = FALSE)));
+
+
+
+MODULE  Is_VAPPR_Active()
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := TRUE;
+	next(result) := 
+	case
+		TRUE : {FALSE, TRUE};
+	esac;
+
+MODULE  Is_VGA_Active()
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := TRUE;
+	next(result) := 
+	case
+		TRUE : {FALSE, TRUE};
+	esac;
+
+MODULE  Is_ALT_Active()
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := TRUE;
+	next(result) := 
+	case
+		TRUE : {FALSE, TRUE};
+	esac;
+
+MODULE	Is_ALTSEL_Avaiable(m_Is_VAPPR_Active, m_Is_VGA_Active, m_Is_ALT_Active)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := TRUE;
+	next(result) := 
+	case
+		next(m_Is_VAPPR_Active.result)	|
+		next(m_Is_VGA_Active.result)	|
+		next(m_Is_ALT_Active.result)	: FALSE;
+		TRUE				: TRUE;
+	esac;
+	
+--选择ALTS 模块
+MODULE Select_ALTSEL (m_Is_VAPPR_Active, m_Is_VGA_Active, m_Is_ALT_Active)
+
+VAR
+	result : boolean;
+ASSIGN
+	init(result) :=	FALSE;
+	next(result) := (!next(m_Is_VAPPR_Active.result)) & 
+			(!next(m_Is_VGA_Active.result))   & 
+			(!next(m_Is_ALT_Active.result));
+
+--set ALTS to Capture
+MODULE Capture_ALTSEL (m_Is_ALTSEL_Capture_Cond_Met)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := next(m_Is_ALTSEL_Capture_Cond_Met.result);
+
+--set ALTS to Track
+MODULE Track_ALTSEL (m_Is_ALTSEL_Track_Cond_Met)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := next(m_Is_ALTSEL_Track_Cond_Met.result);
+
+--set ALTS to Cleared
+MODULE Deselect_ALTSEL (m_Is_VAPPR_Active, m_Is_VGA_Active, m_Is_ALT_Active)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := TRUE;
+	next(result) := 
+	case
+		next(m_Is_VAPPR_Active.result) : TRUE;
+		next(m_Is_VGA_Active.result)   : TRUE;
+		next(m_Is_ALT_Active.result)   : TRUE;
+		!next(m_Is_VAPPR_Active.result) &
+		!next(m_Is_VGA_Active.result)   &
+		!next(m_Is_ALT_Active.result)  : FALSE;
+		TRUE			       : result;
+	esac;
+
+--set ALTS to Cleared except it is armed
+MODULE Deactivate_ALTSEL (m_ALTSEL_Target_Altitude_Changed)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := 
+	case
+		next(m_ALTSEL_Target_Altitude_Changed.result)	: TRUE;
+		!next(m_ALTSEL_Target_Altitude_Changed.result)	: FALSE;
+		TRUE					        : result;
+	esac;
+
+--
+MODULE Is_ALTSEL_Selected (m_ALTSEL)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := 
+	case
+		next(m_ALTSEL.ALTSEL) = Selected	: TRUE;
+		TRUE				        : FALSE;
+	esac;
+
+--
+MODULE Is_ALTSEL_Active (m_ALTSEL_Selected)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := 
+	case
+		next(m_ALTSEL_Selected.result) = Active		: TRUE;
+		TRUE						: FALSE;
+	esac;
+
+MODULE Is_ALTSEL_Track (m_ALTSEL_Active)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) :=	
+	case
+		next(m_ALTSEL_Active.result) = Track		: TRUE;
+		TRUE						: FALSE;
+	esac;
+
+MODULE When_ALTSEL_Activated (m_Capture_ALTSEL,
+			      m_ALTSEL_Selected)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := next(m_Capture_ALTSEL.result)	   & 
+			(m_ALTSEL_Selected.result = Armed);
+
+
+MODULE ALTSEL (m_Select_ALTSEL,
+	       m_Deselect_ALTSEL)
+VAR
+	ALTSEL : {Undefined, Cleared, Selected};
+ASSIGN
+	init(ALTSEL) := Cleared;
+	next(ALTSEL) :=
+	case
+		!next(m_Select_ALTSEL.result)			      : Cleared;
+		next(m_Select_ALTSEL.result)			      : Selected;
+		(ALTSEL = Cleared)   & next(m_Select_ALTSEL.result)   : Selected;
+		(ALTSEL = Selected)  & next(m_Deselect_ALTSEL.result) : Cleared;
+		TRUE						      : ALTSEL;
+	esac;
+
+MODULE ALTSEL_Selected (m_Capture_ALTSEL,
+			m_Deactivate_ALTSEL,
+			m_ALTSEL)
+VAR
+	result : {Undefined, Armed, Active};
+ASSIGN
+	init(result) := Undefined;
+	next(result) := 
+	case
+		next(m_ALTSEL.ALTSEL) != Selected		     : Undefined ;
+		(result = Undefined)				     : Armed;
+		(result = Armed)  & next(m_Capture_ALTSEL.result)    : Active;
+		(result = Active) & next(m_Deactivate_ALTSEL.result) : Armed;
+		TRUE						     : result;
+	esac;
+
+
+MODULE ALTSEL_Active (m_Track_ALTSEL,
+		      m_ALTSEL_Selected)
+VAR
+	result : {Undefined, Capture, Track};
+ASSIGN
+	init(result) := Undefined;
+	next(result) := 
+	case
+		next(m_ALTSEL_Selected.result) != Active	 : Undefined;
+		(result = Undefined)				 : Capture;
+		(result = Capture) & next(m_Track_ALTSEL.result) : Track;
+		TRUE						 : result;
+	esac;
+
+MODULE  Is_ALTSEL_Capture_Cond_Met(m_ALTSEL, m_ALTSEL_Target_Altitude_Changed) 
+VAR
+	result : boolean;
+ASSIGN 
+	init(result) := FALSE;
+	next(result) := 
+	case
+		next(m_ALTSEL_Target_Altitude_Changed.result)		: FALSE;
+		next(m_ALTSEL.ALTSEL) = Cleared				: FALSE;
+		m_ALTSEL.ALTSEL = Selected				: TRUE;		
+		TRUE							: result;
+	esac;
+		
+
+MODULE  Is_ALTSEL_Track_Cond_Met(m_Is_ALTSEL_Capture_Cond_Met, m_Current_Altitude, m_Current_Heading, m_ALTSEL_Target_Altitude_Changed)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) :=	
+	case
+		next(m_ALTSEL_Target_Altitude_Changed.result)			: FALSE;
+		(next(m_Current_Altitude.result) != Equal_to_Target_Altitude)	|
+		(next(m_Current_Heading.result) != Equal_to_Target_Heading)	: FALSE;
+		(m_Is_ALTSEL_Capture_Cond_Met.result = TRUE)			& 
+		(next(m_Current_Altitude.result) = Equal_to_Target_Altitude)	&
+		(next(m_Current_Heading.result) = Equal_to_Target_Heading)	: TRUE;
+		(!next(m_Is_ALTSEL_Capture_Cond_Met.result))			: FALSE;
+		TRUE								: result;
+	esac;
+
+
+MODULE  ALTSEL_Target_Altitude_Changed(m_Is_ALTSEL_Avaiable)
+VAR
+	result : boolean;
+ASSIGN 
+	init(result) := FALSE;
+	next(result) :=
+	case
+		!next(m_Is_ALTSEL_Avaiable.result) : FALSE;
+		(result = TRUE)			   : FALSE;
+		TRUE				   : {TRUE, FALSE};
+	esac;
+
+MODULE  Current_Altitude(m_ALTSEL_Target_Altitude_Changed, m_Is_ALTSEL_Avaiable, m_ALTSEL_Selected)
+VAR
+	result : {Undefined, Greater_than_Target_Altitude, Less_than_Target_Altitude, Equal_to_Target_Altitude};
+ASSIGN
+	init(result) := Undefined;
+	next(result) := 
+	case
+		next(m_ALTSEL_Target_Altitude_Changed.result)   : Undefined;
+		!next(m_Is_ALTSEL_Avaiable.result)		: Undefined;
+		m_ALTSEL_Selected.result = Armed		: {Greater_than_Target_Altitude, Less_than_Target_Altitude};
+		(result = Greater_than_Target_Altitude) | 
+		(result = Less_than_Target_Altitude)		: Equal_to_Target_Altitude;
+		TRUE						: result;
+	esac;
+
+MODULE  Current_Heading(m_ALTSEL_Target_Altitude_Changed, m_Is_ALTSEL_Avaiable, m_ALTSEL_Selected)
+VAR
+	result : {Undefined, Greater_than_Target_Heading, Less_than_Target_Heading, Equal_to_Target_Heading};
+ASSIGN
+	init(result) := Undefined;
+	next(result) := 
+	case
+		next(m_ALTSEL_Target_Altitude_Changed.result) : Undefined;
+		!next(m_Is_ALTSEL_Avaiable.result)	      : Undefined;
+		m_ALTSEL_Selected.result = Armed	      : {Greater_than_Target_Heading, Less_than_Target_Heading};
+		(result = Greater_than_Target_Heading) | 
+		(result = Less_than_Target_Heading)	      : Equal_to_Target_Heading;
+		TRUE					      : result;
+	esac;
+
+
+MODULE  Update_Roll_Guidance(m_ALTSEL_Selected, m_ALTSEL_Active)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := 
+	case
+		next(m_ALTSEL_Selected.result) = Armed : FALSE;
+		next(m_ALTSEL_Active.result) = Capture : TRUE;
+		next(m_ALTSEL_Active.result) = Track   : FALSE;
+		TRUE				       : FALSE;
+	esac;
+
+
+MODULE  Update_Pitch_Guidance(m_ALTSEL_Selected, m_ALTSEL_Active)
+VAR
+	result : boolean;
+ASSIGN
+	init(result) := FALSE;
+	next(result) := 
+	case
+		next(m_ALTSEL_Selected.result) = Armed : FALSE;
+		next(m_ALTSEL_Active.result) = Capture : TRUE;
+		next(m_ALTSEL_Active.result) = Track   : FALSE;
+		TRUE				       : FALSE;
+	esac;
+
+
+
+
+	
+			
+
