@@ -8,5 +8,5 @@ STEP1: Getting NuSMV
 
 
 
-        ![image](https://raw.githubusercontent.com/ft272781150/FGS/master/img/1.jpg)
+        ![Image text](https://raw.githubusercontent.com/ft272781150/FGS/master/img/1.jpg)
       
