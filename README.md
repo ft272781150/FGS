@@ -8,5 +8,5 @@ STEP1: Getting NuSMV
 
 
 
-        ![ABC](http://www.baidu.com/img/bdlogo.gif)
+        ![Image text](https://github.com/ft272781150/FGS/raw/master/img/1.jpg)
       
